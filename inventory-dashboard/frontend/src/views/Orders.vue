@@ -1,7 +1,7 @@
 <template>
   <div class="orders-container">
     <div class="header">
-      <h2>Overall Orders</h2>
+      <h2>Order History</h2>
       <button class="btn btn-primary" @click="showAddOrderModal = true">
         + Add Order
       </button>
