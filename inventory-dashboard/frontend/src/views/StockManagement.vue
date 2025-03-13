@@ -265,34 +265,21 @@ function openStockAdjustment(product) {
 
 function saveStockAdjustment() {
   const adjustment = {
-    id: Date.now(),
-    date: new Date().toISOString(),
+    productId: adjustmentForm.value.productId,
     type: adjustmentForm.value.type,
-    quantity: adjustmentForm.value.quantity,
+    quantity: parseInt(adjustmentForm.value.quantity),
     reason: adjustmentForm.value.reason,
     notes: adjustmentForm.value.notes
   }
 
-  // Add to product history
-  if (!selectedProduct.value.history) {
-    selectedProduct.value.history = []
-  }
-  selectedProduct.value.history.unshift(adjustment)
-
-  // Update stock quantity
-  const product = selectedProduct.value
-  if (adjustmentForm.value.type === 'add') {
-    product.stock += adjustmentForm.value.quantity
-  } else {
-    product.stock = Math.max(0, product.stock - adjustmentForm.value.quantity)
-  }
-
-  // Update product status
-  updateProductStatus(product)
+  // Use store's adjustStock function
+  const success = store.adjustStock(adjustment)
   
-  // Update store
-  store.updateProduct(product)
-  closeModal()
+  if (success) {
+    closeModal()
+  } else {
+    alert('Cannot adjust stock. Please check your inputs.')
+  }
 }
 
 function updateProductStatus(product) {
