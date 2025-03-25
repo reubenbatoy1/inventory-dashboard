@@ -1,200 +1,198 @@
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+from typing import List, Optional
+from pydantic import BaseModel
+import os
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+DATABASE_URL = "sqlite:///./inventory.db"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-# Models
-class Product(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    quantity = db.Column(db.Integer, default=0)
-    price = db.Column(db.Float, nullable=False)
-    category = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text)
-    image = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    sales = db.relationship('Sale', backref='product', lazy=True)
-    purchases = db.relationship('Purchase', backref='product', lazy=True)
+class Product(Base):
+    __tablename__ = "products"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    quantity = Column(Integer, default=0)
+    price = Column(Float, nullable=False)
+    category = Column(String(50), nullable=False)
+    description = Column(String(500))
+    image = Column(String(200))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    sales = relationship("Sale", back_populates="product")
+    purchases = relationship("Purchase", back_populates="product")
 
-class Sale(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
-    total_price = db.Column(db.Float, nullable=False)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
+class Sale(Base):
+    __tablename__ = "sales"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    total_price = Column(Float, nullable=False)
+    date = Column(DateTime, default=datetime.utcnow)
+    
+    product = relationship("Product", back_populates="sales")
 
-class Purchase(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
-    cost = db.Column(db.Float, nullable=False)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
+class Purchase(Base):
+    __tablename__ = "purchases"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    cost = Column(Float, nullable=False)
+    date = Column(DateTime, default=datetime.utcnow)
+    
+    product = relationship("Product", back_populates="purchases")
+
+# Pydantic models for request validation
+class ProductCreate(BaseModel):
+    name: str
+    quantity: int
+    price: float
+    category: str
+    description: Optional[str] = None
+    image: Optional[str] = None
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    quantity: Optional[int] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    image: Optional[str] = None
+
+class SaleCreate(BaseModel):
+    product_id: int
+    quantity: int
+    total_price: float
+
+class PurchaseCreate(BaseModel):
+    product_id: int
+    quantity: int
+    cost: float
+
+# Database session dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.on_event("startup")
+def startup_event():
+    Base.metadata.create_all(bind=engine)
 
 # Routes
-@app.route('/api/products', methods=['GET', 'POST'])
-def handle_products():
-    if request.method == 'GET':
-        products = Product.query.all()
-        return jsonify([{
-            'id': p.id,
-            'name': p.name,
-            'quantity': p.quantity,
-            'price': p.price,
-            'category': p.category,
-            'description': p.description,
-            'image': p.image,
-            'status': 'out' if p.quantity <= 0 else 'low' if p.quantity < 10 else 'in'
-        } for p in products])
-    
-    if request.method == 'POST':
-        data = request.json
-        if data['category'] not in ['uniform', 'book', 'others']:
-            return jsonify({'error': 'Invalid category. Must be uniform, book, or others'}), 400
-        
-        product = Product(
-            name=data['name'],
-            quantity=data['quantity'],
-            price=data['price'],
-            category=data['category'],
-            description=data.get('description'),
-            image=data.get('image')
-        )
-        db.session.add(product)
-        db.session.commit()
-        return jsonify({'message': 'Product created successfully'}), 201
+@app.get("/api/products", response_model=List[Product])
+async def get_products(db: Session = Depends(get_db)):
+    return db.query(Product).all()
 
-@app.route('/api/products/<int:id>', methods=['PUT', 'DELETE'])
-def handle_product(id):
-    product = Product.query.get_or_404(id)
-    
-    if request.method == 'PUT':
-        data = request.json
-        if 'category' in data and data['category'] not in ['uniform', 'book', 'others']:
-            return jsonify({'error': 'Invalid category. Must be uniform, book, or others'}), 400
-        
-        for key, value in data.items():
-            setattr(product, key, value)
-        
-        db.session.commit()
-        return jsonify({'message': 'Product updated successfully'})
-    
-    if request.method == 'DELETE':
-        db.session.delete(product)
-        db.session.commit()
-        return jsonify({'message': 'Product deleted successfully'})
+@app.post("/api/products", response_model=Product)
+async def create_product(product: ProductCreate, db: Session = Depends(get_db)):
+    db_product = Product(**product.dict())
+    db.add(db_product)
+    db.commit()
+    db.refresh(db_product)
+    return db_product
 
-@app.route('/api/sales', methods=['GET', 'POST'])
-def handle_sales():
-    if request.method == 'GET':
-        sales = Sale.query.all()
-        return jsonify([{
-            'id': s.id,
-            'product_id': s.product_id,
-            'product_name': s.product.name,
-            'quantity': s.quantity,
-            'total_price': s.total_price,
-            'date': s.date.isoformat()
-        } for s in sales])
-    
-    if request.method == 'POST':
-        data = request.json
-        product = Product.query.get_or_404(data['product_id'])
-        if product.quantity < data['quantity']:
-            return jsonify({'error': 'Insufficient stock'}), 400
-        
-        sale = Sale(
-            product_id=data['product_id'],
-            quantity=data['quantity'],
-            total_price=data['quantity'] * product.price
-        )
-        product.quantity -= data['quantity']
-        
-        db.session.add(sale)
-        db.session.commit()
-        return jsonify({'message': 'Sale recorded successfully'}), 201
+@app.get("/api/products/{product_id}", response_model=Product)
+async def get_product(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
 
-@app.route('/api/purchases', methods=['GET', 'POST'])
-def handle_purchases():
-    if request.method == 'GET':
-        purchases = Purchase.query.all()
-        return jsonify([{
-            'id': p.id,
-            'product_id': p.product_id,
-            'product_name': p.product.name,
-            'quantity': p.quantity,
-            'cost': p.cost,
-            'date': p.date.isoformat()
-        } for p in purchases])
+@app.put("/api/products/{product_id}", response_model=Product)
+async def update_product(product_id: int, product_update: ProductUpdate, db: Session = Depends(get_db)):
+    db_product = db.query(Product).filter(Product.id == product_id).first()
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Product not found")
     
-    if request.method == 'POST':
-        data = request.json
-        product = Product.query.get_or_404(data['product_id'])
-        
-        purchase = Purchase(
-            product_id=data['product_id'],
-            quantity=data['quantity'],
-            cost=data['cost']
-        )
-        product.quantity += data['quantity']
-        
-        db.session.add(purchase)
-        db.session.commit()
-        return jsonify({'message': 'Purchase recorded successfully'}), 201
+    for key, value in product_update.dict(exclude_unset=True).items():
+        setattr(db_product, key, value)
+    
+    db.commit()
+    db.refresh(db_product)
+    return db_product
 
-@app.route('/api/dashboard', methods=['GET'])
-def get_dashboard_data():
-    products = Product.query.all()
-    sales = Sale.query.all()
-    purchases = Purchase.query.all()
+@app.delete("/api/products/{product_id}")
+async def delete_product(product_id: int, db: Session = Depends(get_db)):
+    db_product = db.query(Product).filter(Product.id == product_id).first()
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Product not found")
     
-    # Calculate totals
-    total_inventory = sum(p.quantity for p in products)
-    total_sales = sum(s.total_price for s in sales)
-    total_purchases = sum(p.cost for p in purchases)
+    db.delete(db_product)
+    db.commit()
+    return {"message": "Product deleted successfully"}
+
+@app.post("/api/sales", response_model=Sale)
+async def create_sale(sale: SaleCreate, db: Session = Depends(get_db)):
+    db_sale = Sale(**sale.dict())
+    db.add(db_sale)
+    db.commit()
+    db.refresh(db_sale)
+    return db_sale
+
+@app.post("/api/purchases", response_model=Purchase)
+async def create_purchase(purchase: PurchaseCreate, db: Session = Depends(get_db)):
+    db_purchase = Purchase(**purchase.dict())
+    db.add(db_purchase)
+    db.commit()
+    db.refresh(db_purchase)
+    return db_purchase
+
+@app.get("/api/dashboard")
+async def get_dashboard_data(db: Session = Depends(get_db)):
+    # Calculate total sales
+    total_sales = db.query(Sale).count()
     
-    # Get inventory by category
-    inventory_by_category = {}
-    for category in ['uniform', 'book', 'others']:
-        category_products = [p for p in products if p.category == category]
-        inventory_by_category[category] = {
-            'count': len(category_products),
-            'total_items': sum(p.quantity for p in category_products)
+    # Calculate total revenue
+    total_revenue = db.query(Sale).with_entities(db.func.sum(Sale.total_price)).scalar() or 0
+    
+    # Get sales by category
+    sales_by_category = db.query(Product.category, db.func.count(Sale.id), db.func.sum(Sale.total_price))\
+        .join(Sale, Sale.product_id == Product.id)\
+        .group_by(Product.category)\
+        .all()
+    
+    # Format results
+    dashboard_data = {
+        "sales": {
+            "value": total_sales,
+            "byCategory": [{
+                "category": category,
+                "value": count,
+                "revenue": revenue
+            } for category, count, revenue in sales_by_category]
+        },
+        "revenue": {
+            "value": total_revenue
         }
+    }
     
-    return jsonify({
-        'inventory_summary': {
-            'total_products': len(products),
-            'total_inventory': total_inventory,
-            'by_category': inventory_by_category
-        },
-        'sales_overview': {
-            'total_sales': total_sales,
-            'number_of_sales': len(sales)
-        },
-        'purchase_overview': {
-            'total_purchases': total_purchases,
-            'number_of_purchases': len(purchases)
-        },
-        'low_stock_items': [
-            {
-                'id': p.id,
-                'name': p.name,
-                'quantity': p.quantity,
-                'category': p.category
-            }
-            for p in products if p.quantity < 10
-        ]
-    })
+    return dashboard_data
 
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
