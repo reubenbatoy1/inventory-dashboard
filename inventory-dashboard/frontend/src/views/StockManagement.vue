@@ -74,7 +74,7 @@
         <h3>Stock Adjustment</h3>
         <button class="close-btn" @click="closeModal">&times;</button>
       </div>
-      <form @submit.prevent="saveStockAdjustment" class="compact-form">
+      <form @submit.prevent="confirmAdjustment" class="compact-form">
         <div class="form-grid">
           <div class="form-row">
             <div class="form-group">
@@ -296,7 +296,8 @@ function openStockAdjustment(product) {
   showAdjustmentModal.value = true
 }
 
-function saveStockAdjustment() {
+function confirmAdjustment() {
+  // Create adjustment object
   const adjustment = {
     productId: adjustmentForm.value.productId,
     type: adjustmentForm.value.type,
@@ -309,28 +310,21 @@ function saveStockAdjustment() {
   const success = store.adjustStock(adjustment)
   
   if (success) {
+    // Find the product that was adjusted to refresh its data
+    const adjustedProduct = store.getProductById(adjustment.productId)
+    
+    // Close modal first
+    closeModal()
+    
     // Show notification
     alert('Adjustment approved successfully!')
-    // Close modal
-    closeModal()
+    
+    // If user was viewing the history of this product, refresh it
+    if (selectedProduct.value && selectedProduct.value.id === adjustment.productId) {
+      selectedProduct.value = adjustedProduct
+    }
   } else {
     alert('Cannot adjust stock. Please check your inputs.')
-  }
-}
-
-function updateProductStatus(product) {
-  const threshold = product.category === 'Uniform' ? 10 : 
-                   product.category === 'Books' ? 5 : 50
-
-  if (product.stock === 0) {
-    product.status = 'Out of Stock'
-    product.statusClass = 'out-of-stock'
-  } else if (product.stock <= threshold) {
-    product.status = 'Low Stock'
-    product.statusClass = 'low-stock'
-  } else {
-    product.status = 'In Stock'
-    product.statusClass = 'in-stock'
   }
 }
 

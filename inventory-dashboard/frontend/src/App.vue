@@ -1,10 +1,25 @@
 <script setup>
 import logo from './assets/logo.png'
-import HelloWorld from './components/HelloWorld.vue'
+import { useAuthStore } from './stores/auth'
+import { useRouter } from 'vue-router'
+
+const authStore = useAuthStore()
+const router = useRouter()
+
+function logout() {
+  authStore.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
-  <div class="app">
+  <!-- Login page doesn't use the app layout -->
+  <div v-if="!authStore.isAuthenticated" class="login-layout">
+    <router-view />
+  </div>
+  
+  <!-- Main app layout only shown when authenticated -->
+  <div v-else class="app">
     <nav class="side-nav">
       <div class="logo-container">
         <div class="logo">
@@ -37,6 +52,14 @@ import HelloWorld from './components/HelloWorld.vue'
           <span class="text">Reports</span>
         </router-link>
       </nav>
+
+      <!-- Logout at the bottom of sidebar -->
+      <div class="logout-container">
+        <button @click="logout" class="logout-button">
+          <span class="icon">🚪</span>
+          <span class="text">Logout</span>
+        </button>
+      </div>
     </nav>
     <main class="main-content">
       <header class="top-bar">
@@ -45,11 +68,11 @@ import HelloWorld from './components/HelloWorld.vue'
         </div>
         <div class="user-menu">
           <span class="notifications">🔔</span>
-          <span class="profile">👤</span>
+          <span class="profile">{{ authStore.username }}</span>
         </div>
       </header>
       <div class="page-content">
-        <router-view></router-view>
+        <router-view />
       </div>
     </main>
   </div>
@@ -282,5 +305,39 @@ import HelloWorld from './components/HelloWorld.vue'
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+}
+
+.logout-container {
+  margin-top: auto;
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logout-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  color: #e74c3c;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  font-size: 14px;
+}
+
+.logout-button:hover {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.logout-button .icon {
+  margin-right: 10px;
+  font-size: 18px;
+}
+
+.login-layout {
+  min-height: 100vh;
+  width: 100%;
 }
 </style>

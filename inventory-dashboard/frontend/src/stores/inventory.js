@@ -199,6 +199,10 @@ const updateProduct = (updatedProduct) => {
   }
 }
 
+const getProductById = (productId) => {
+  return products.value.find(p => p.id === productId)
+}
+
 const deleteProduct = (id) => {
   products.value = products.value.filter(p => p.id !== id)
 }
@@ -286,6 +290,7 @@ export const useInventoryStore = () => {
     updateOrder,
     addPurchaseOrder,
     adjustStock,
-    stockThresholds
+    stockThresholds,
+    getProductById
   }
 }
