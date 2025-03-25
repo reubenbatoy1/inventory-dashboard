@@ -189,6 +189,7 @@
               <tr>
                 <th>Date</th>
                 <th>Type</th>
+                <th>Reason</th>
                 <th>Quantity</th>
                 <th>Notes</th>
               </tr>
@@ -199,6 +200,11 @@
                 <td>
                   <span :class="['movement-type', movement.type]">
                     {{ formatType(movement.type) }}
+                  </span>
+                </td>
+                <td>
+                  <span :class="['reason-tag', getReasonsClass(movement.reason)]">
+                    {{ formatReason(movement.reason) }}
                   </span>
                 </td>
                 <td :class="getQuantityClass(movement.type)">
@@ -378,6 +384,40 @@ function getStockLevelClass(product) {
 function getThreshold(category) {
   return category === 'Uniform' ? 10 : 
          category === 'Books' ? 5 : 50
+}
+
+function formatReason(reason) {
+  switch (reason) {
+    case 'purchase':
+      return 'New Purchase'
+    case 'return':
+      return 'Return'
+    case 'correction':
+      return 'Stock Correction'
+    case 'sale':
+      return 'Sale'
+    case 'damage':
+      return 'Damage/Loss'
+    default:
+      return reason
+  }
+}
+
+function getReasonsClass(reason) {
+  switch (reason) {
+    case 'purchase':
+      return 'reason-purchase'
+    case 'return':
+      return 'reason-return'
+    case 'correction':
+      return 'reason-correction'
+    case 'sale':
+      return 'reason-sale'
+    case 'damage':
+      return 'reason-damage'
+    default:
+      return ''
+  }
 }
 </script>
 
@@ -684,5 +724,36 @@ function getThreshold(category) {
 textarea.form-control {
   resize: vertical;
   min-height: 80px;
+}
+
+.reason-tag {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.reason-tag.reason-purchase {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+}
+
+.reason-tag.reason-return {
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196F3;
+}
+
+.reason-tag.reason-correction {
+  background: rgba(255, 152, 0, 0.1);
+  color: #ff9800;
+}
+
+.reason-tag.reason-sale {
+  background: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+}
+
+.reason-tag.reason-damage {
+  background: rgba(156, 39, 176, 0.1);
+  color: #9C27B0;
 }
 </style>
