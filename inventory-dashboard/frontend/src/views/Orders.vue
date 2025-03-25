@@ -281,12 +281,20 @@ const groupedProducts = computed(() => {
 })
 
 const filteredOrders = computed(() => {
-  return orders.value.filter(order => {
+  // First filter the orders
+  const filtered = orders.value.filter(order => {
     const matchesSearch = !filters.value.search || 
       order.customer.toLowerCase().includes(filters.value.search.toLowerCase()) ||
       order.id.toString().includes(filters.value.search)
     const matchesStatus = !filters.value.status || order.status === filters.value.status
     return matchesSearch && matchesStatus
+  })
+  
+  // Then sort by date (newest first)
+  return filtered.sort((a, b) => {
+    const dateA = new Date(a.date)
+    const dateB = new Date(b.date)
+    return dateB - dateA  // Sort in descending order (newest first)
   })
 })
 
