@@ -205,7 +205,60 @@ const deleteProduct = (id) => {
 
 // Order management
 const addOrder = (order) => {
+  // Check if we have sufficient stock for all items
+  const insufficientItems = []
+  
+  // First validate all items have sufficient stock
+  for (const item of order.items) {
+    const product = products.value.find(p => p.id === item.id)
+    if (!product) {
+      return { success: false, message: `Product ID ${item.id} not found` }
+    }
+    
+    if (product.stock < item.quantity) {
+      insufficientItems.push({
+        name: product.name,
+        requested: item.quantity,
+        available: product.stock
+      })
+    }
+  }
+  
+  // If any items have insufficient stock, return error
+  if (insufficientItems.length > 0) {
+    return {
+      success: false,
+      message: 'Insufficient stock for some items',
+      insufficientItems
+    }
+  }
+  
+  // Deduct stock from products
+  for (const item of order.items) {
+    const product = products.value.find(p => p.id === item.id)
+    
+    // Create history entry for the stock deduction
+    const historyEntry = {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      date: new Date().toISOString(),
+      type: 'remove',
+      quantity: item.quantity,
+      reason: 'sale',
+      notes: `Order #${order.id} - Customer: ${order.customer}`
+    }
+    
+    // Deduct stock and update history
+    product.stock -= item.quantity
+    product.history.unshift(historyEntry)
+    
+    // Update product status based on new stock level
+    updateProductStatus(product)
+  }
+  
+  // Add the order
   orders.value.push(order)
+  
+  return { success: true, message: 'Order created successfully' }
 }
 
 const updateOrder = (updatedOrder) => {

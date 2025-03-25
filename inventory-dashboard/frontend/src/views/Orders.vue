@@ -142,23 +142,49 @@
                   <select v-model="item.product" class="form-control" required>
                     <option value="" disabled selected>Select product</option>
                     <optgroup label="Uniforms">
-                      <option v-for="product in groupedProducts.Uniform" :key="product.id" :value="product">
+                      <option 
+                        v-for="product in groupedProducts.Uniform" 
+                        :key="product.id" 
+                        :value="product"
+                        :disabled="product.stock <= 0"
+                      >
                         {{ product.name }} - ₱{{ product.price }}
+                        {{ product.stock <= 0 ? '(Out of Stock)' : `(${product.stock} available)` }}
                       </option>
                     </optgroup>
                     <optgroup label="Books">
-                      <option v-for="product in groupedProducts.Books" :key="product.id" :value="product">
+                      <option 
+                        v-for="product in groupedProducts.Books" 
+                        :key="product.id" 
+                        :value="product"
+                        :disabled="product.stock <= 0"
+                      >
                         {{ product.name }} - ₱{{ product.price }}
+                        {{ product.stock <= 0 ? '(Out of Stock)' : `(${product.stock} available)` }}
                       </option>
                     </optgroup>
                     <optgroup label="Other">
-                      <option v-for="product in groupedProducts.Other" :key="product.id" :value="product">
+                      <option 
+                        v-for="product in groupedProducts.Other" 
+                        :key="product.id" 
+                        :value="product"
+                        :disabled="product.stock <= 0"
+                      >
                         {{ product.name }} - ₱{{ product.price }}
+                        {{ product.stock <= 0 ? '(Out of Stock)' : `(${product.stock} available)` }}
                       </option>
                     </optgroup>
                   </select>
                   <div class="quantity-input">
-                    <input type="number" v-model="item.quantity" min="1" class="form-control" required placeholder="Qty" />
+                    <input 
+                      type="number" 
+                      v-model="item.quantity" 
+                      min="1" 
+                      :max="item.product ? item.product.stock : 1"
+                      class="form-control" 
+                      required 
+                      placeholder="Qty" 
+                    />
                     <button type="button" class="remove-btn" @click="removeItem(index)" v-if="orderForm.items.length > 1">&times;</button>
                   </div>
                 </div>
@@ -302,14 +328,32 @@ function saveOrder() {
       name: item.product.name,
       quantity: item.quantity,
       price: item.product.price,
-      cost: item.product.cost,
+      cost: item.product.cost || (item.product.price * 0.7), // Fallback if cost is not available
       category: item.product.category
     })),
     total: calculateTotal()
   }
 
-  store.addOrder(newOrder)
-  closeAddOrderModal()
+  // Confirm with the user before creating order and deducting stock
+  if (confirm("Create this order? This will automatically deduct items from inventory.")) {
+    const result = store.addOrder(newOrder)
+    
+    if (result.success) {
+      alert(result.message);
+      closeAddOrderModal();
+    } else {
+      if (result.insufficientItems) {
+        // Format error message for insufficient items
+        const itemErrors = result.insufficientItems.map(item => 
+          `${item.name}: Requested ${item.requested}, Available ${item.available}`
+        ).join('\n');
+        
+        alert(`Cannot create order. Insufficient stock:\n${itemErrors}`);
+      } else {
+        alert(result.message);
+      }
+    }
+  }
 }
 
 function closeAddOrderModal() {
