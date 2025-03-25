@@ -144,13 +144,18 @@ const stockThresholds = {
 
 // Update product status based on stock level
 const updateProductStatus = (product) => {
-  const threshold = stockThresholds[product.category]
-  if (product.stock < threshold) {
-    product.status = 'Low Stock'
-    product.statusClass = 'low-stock'
+  if (product.stock === 0) {
+    product.status = 'Out of Stock'
+    product.statusClass = 'out-of-stock'
   } else {
-    product.status = 'In Stock'
-    product.statusClass = 'in-stock'
+    const threshold = stockThresholds[product.category]
+    if (product.stock < threshold) {
+      product.status = 'Low Stock'
+      product.statusClass = 'low-stock'
+    } else {
+      product.status = 'In Stock'
+      product.statusClass = 'in-stock'
+    }
   }
 }
 

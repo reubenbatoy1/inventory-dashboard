@@ -111,11 +111,13 @@
               <label>Reason</label>
               <select v-model="adjustmentForm.reason" required class="form-control">
                 <option value="" disabled selected>Select reason</option>
-                <option value="purchase">New Purchase</option>
-                <option value="sale">Sale</option>
-                <option value="return">Return</option>
-                <option value="damage">Damage/Loss</option>
-                <option value="correction">Stock Correction</option>
+                <option 
+                  v-for="option in filteredReasons" 
+                  :key="option.value" 
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
               </select>
             </div>
           </div>
@@ -213,7 +215,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useInventoryStore } from '../stores/inventory'
 
 const store = useInventoryStore()
@@ -233,6 +235,31 @@ const adjustmentForm = ref({
   quantity: 1,
   reason: '',
   notes: ''
+})
+
+// Define reason options for each adjustment type
+const reasonOptions = {
+  add: [
+    { value: 'purchase', label: 'New Purchase' },
+    { value: 'return', label: 'Return' },
+    { value: 'correction', label: 'Stock Correction' }
+  ],
+  remove: [
+    { value: 'sale', label: 'Sale' },
+    { value: 'damage', label: 'Damage/Loss' },
+    { value: 'correction', label: 'Stock Correction' }
+  ]
+}
+
+// Computed property to get filtered reason options based on selected type
+const filteredReasons = computed(() => {
+  if (!adjustmentForm.value.type) return []
+  return reasonOptions[adjustmentForm.value.type] || []
+})
+
+// Watch for changes to the adjustment type and reset the reason
+watch(() => adjustmentForm.value.type, () => {
+  adjustmentForm.value.reason = ''
 })
 
 // Group products by category
@@ -276,6 +303,9 @@ function saveStockAdjustment() {
   const success = store.adjustStock(adjustment)
   
   if (success) {
+    // Show notification
+    alert('Adjustment approved successfully!')
+    // Close modal
     closeModal()
   } else {
     alert('Cannot adjust stock. Please check your inputs.')
@@ -327,11 +357,11 @@ function formatType(type) {
 }
 
 function getQuantityClass(type) {
-  return type === 'stock_in' ? 'positive' : 'negative'
+  return type === 'add' ? 'positive' : 'negative'
 }
 
 function getQuantityPrefix(type) {
-  return type === 'stock_in' ? '+' : '-'
+  return type === 'add' ? '+' : '-'
 }
 
 function getStockLevelClass(product) {
@@ -509,7 +539,7 @@ function getThreshold(category) {
 }
 
 .form-control {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   padding: 0.375rem 0.5rem;
   height: 32px;
 }
@@ -615,12 +645,12 @@ function getThreshold(category) {
   text-transform: capitalize;
 }
 
-.movement-type.stock_in {
+.movement-type.add {
   background: rgba(76, 175, 80, 0.1);
   color: #4CAF50;
 }
 
-.movement-type.stock_out,
+.movement-type.remove,
 .movement-type.damaged,
 .movement-type.expired,
 .movement-type.lost,
